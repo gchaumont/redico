@@ -32,13 +32,13 @@ use Redico\Index\Fields\TextField;
 
 class Grammar extends BaseGrammar
 {
-    const NULL = '_null_';
+    const NULL_VALUE = '_null_';
 
     public function compileSelect(BaseBuilder $query)
     {
         $payload['index'] = $query->from;
 
-        $payload['query'] =   $this->compileWhereComponents($query);
+        $payload['query'] =  $this->compileWhereComponents($query);
 
 
         if (isset($query->orders)) {
@@ -162,7 +162,7 @@ class Grammar extends BaseGrammar
         $key = Arr::pull($values, '_key');
 
         $attrs = collect($values)
-            ->map(fn ($value) => is_null($value) ? static::NULL : $value)
+            ->map(fn ($value) => is_null($value) ? static::NULL_VALUE : $value)
             ->map(fn ($value, $key) => [$key, $value])
             ->flatten()
             ->all();
@@ -289,10 +289,10 @@ class Grammar extends BaseGrammar
 
                 if ($field instanceof TextField) {
                     if ($where['type'] == 'NotNull') {
-                        return  '-@' . $where['column'] . ':' . static::NULL;
+                        return  '-@' . $where['column'] . ':' . static::NULL_VALUE;
                     }
                     if ($where['type'] == 'Null') {
-                        return  '@' . $where['column'] . ':' . static::NULL;
+                        return  '@' . $where['column'] . ':' . static::NULL_VALUE;
                     }
                     return  '@' . $where['column'] . ':"' . $where['value'] . '"';
                 }
@@ -310,15 +310,39 @@ class Grammar extends BaseGrammar
 
                 if ($field instanceof TagField) {
 
+                    if ($where['type'] == 'NotNull') {
+                        return  '-@' . $where['column'] . ':{ ' . static::NULL_VALUE . ' }';
+                    }
+
                     $tags = Collection::wrap($where['value'] ?? $where['values'])
                         ->map(function (mixed $value): string {
                             if (is_object($value)) {
                                 if ($value instanceof BackedEnum) {
-                                    return  $value->value;
+                                    $value = $value->value;
                                 } elseif (enum_exists($value)) {
-                                    return $value->name;
+                                    $value =  $value->name;
                                 }
                             }
+
+                            # if value is not alphanumeric, put quotes around
+                            // if (!preg_match('/^[a-zA-Z0-9]+$/', $value)) {
+                            //     $value =  '"' . $value . '"';
+                            // }
+
+                            # escape puncuation
+                            $value = preg_replace('/([+\-&|!(){}\[\]^"~*?:\\\\])/', '\\\\$1', $value);
+
+                            $specialChars = [
+                                '\\', '(', ')', '"', '-', '|', '!', '@', '{', '}', '[', ']', '.'
+                            ];
+
+                            // Escape each special character
+                            foreach ($specialChars as $char) {
+                                $value = str_replace($char, "\\" . $char, $value);
+                            }
+
+
+
                             return $value;
                         })
                         // ->map(fn (string $value) =>  '"' . $value . '"')
