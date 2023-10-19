@@ -1,0 +1,165 @@
+<?php
+
+namespace Redico\Query;
+
+use Exception;
+use GuzzleHttp\Promise\Promise;
+use Redico\Query\Response\Collection;
+use Elastic\Elasticsearch\Response\Elasticsearch;
+use Redico\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Query\Builder as BaseBuilder;
+use Illuminate\Database\Query\Processors\Processor as BaseProcessor;
+
+/**
+ *  Elasticsearch Query Builder
+ *  Extension of Larvel Database Query Builder.
+ */
+class Processor extends BaseProcessor
+{
+    /**
+     * Process the results of a "select" query.
+     *
+     * @param array $results
+     *
+     * @return array
+     */
+    public function processSelect(BaseBuilder $query, $results)
+    {
+        $items = collect($results);
+
+        $total = $items->shift();
+
+        $items = $items
+            ->chunk(2)
+            ->map(fn ($chunk) => collect($chunk
+                ->skip(1)
+                ->first())
+                ->chunk(2)
+                ->mapWithKeys(fn ($chunk) => [
+                    $chunk->first() => $chunk->last()
+                ])
+                ->put('_key', $chunk->first())
+                ->all());
+
+        return new Collection(
+            items: $items,
+            total: $total,
+            aggregations: [],
+            response: $results,
+            query: $query,
+        );
+    }
+
+    public function processSelectMany(array $queries, $results)
+    {
+        $queries = collect($queries);
+
+        return $queries
+            ->keys()
+            ->combine(
+                $queries
+                    ->values()
+                    ->map(fn ($query, $i) => $this->processSelect($query->toBase(), $results['responses'][$i]))
+            )
+            ->map(function ($response, $i) use ($queries) {
+                if ($queries->get($i) instanceof EloquentBuilder || $queries->get($i) instanceof Relation) {
+                    $response->resetItems($queries->get($i)->getModel()->hydrate($response->all())->all());
+                }
+
+                return $response;
+            })
+            ->all();
+    }
+
+    public function processCount(BaseBuilder $query, $results): int
+    {
+        return $results[0];
+    }
+
+    public function processFind(BaseBuilder $query, $results)
+    {
+        return (new Collection(
+            items: [$results],
+            total: 1,
+            aggregations: [],
+            response: $results,
+            query: $query,
+        ))->first();
+    }
+
+    public function processFindMany(BaseBuilder $query, $results)
+    {
+        $results = $this->resolvePromise($results);
+
+        foreach ($results['docs'] ?? [] as $key => $hit) {
+            foreach ($query->getRequestedColumns() as $column) {
+                $results['docs'][$key]['_source'][$column] ??= null;
+            }
+        }
+
+        return new Collection(
+            items: $results['docs'] ?? [],
+            total: count($results['docs']),
+            aggregations: [],
+            response: $results,
+            query: $query,
+        );
+
+
+        // return LazyCollection::make(function () use ($results) {
+        //     yield from (new PromiseResponse(
+        //         total: fn ($r): int => count($r['docs']),
+        //         source: fn ($r): array => collect($r['docs'])
+        //             ->filter(fn ($d) => !empty($d['found']) && true === $d['found'])
+        //             ->keyBy(fn ($hit) => $hit['_id'])
+        //             ->all(),
+        //         aggregations: fn ($r): array => [],
+        //         response: $results,
+        //     ))->hits();
+        // });
+    }
+
+    /**
+     * Process an  "insert get ID" query.
+     *
+     * @param string      $sql
+     * @param array       $values
+     * @param null|string $sequence
+     *
+     * @return int
+     */
+    public function processInsertGetId(BaseBuilder $query, $sql, $values, $sequence = null)
+    {
+        throw new Exception('TODO', 1);
+        $query->getConnection()->insert($sql, $values);
+
+        $id = $query->getConnection()->getPdo()->lastInsertId($sequence);
+
+        return is_numeric($id) ? (int) $id : $id;
+    }
+
+    /**
+     * Process the results of a column listing query.
+     *
+     * @param array $results
+     *
+     * @return array
+     */
+    public function processColumnListing($results)
+    {
+        return $results;
+    }
+
+    public function resolvePromise(Promise|Elasticsearch|array $response): array
+    {
+        if ($response instanceof Promise) {
+            return $response->wait()->asArray();
+        }
+        if ($response instanceof Elasticsearch) {
+            return $response->asArray();
+        }
+
+        return $response;
+    }
+}

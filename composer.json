@@ -1,0 +1,34 @@
+{
+    "name": "gchaumont/redico",
+    "description": "Eloquent backed by Redis Search",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Redico\\": "src"
+        }
+    },
+    "authors": [
+        {
+            "name": "Guy",
+            "email": "gchaumont@me.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Redico\\RedicoServiceProvider"
+            ]
+        }
+    },
+    "require": {
+        "php": "^8.2"
+    },
+    "require-dev": {
+        "illuminate/collections": "^10.0",
+        "illuminate/database": "^10.0",
+        "illuminate/support": "^10.0",
+        "illuminate/container": "^10.0",
+        "illuminate/events": "^10.0"
+    }
+}
