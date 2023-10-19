@@ -20,6 +20,7 @@ use Redico\Query\Compound\FunctionScore;
 use Redico\Query\Specialized\RankFeature;
 use Illuminate\Database\Query\Builder as BaseBuilder;
 use Illuminate\Database\Query\Grammars\Grammar as BaseGrammar;
+use Illuminate\Support\Collection;
 use Redico\Index\Fields\NumericField;
 use Redico\Index\Fields\TagField;
 use Redico\Index\Fields\TextField;
@@ -31,12 +32,18 @@ use Redico\Index\Fields\TextField;
 
 class Grammar extends BaseGrammar
 {
+    const NULL = '_null_';
+
     public function compileSelect(BaseBuilder $query)
     {
         $payload['index'] = $query->from;
 
-        $payload['query'] = $this->compileWhereComponents($query);
+        $payload['query'] =   $this->compileWhereComponents($query);
 
+
+        if (isset($query->orders)) {
+            $payload = array_merge($payload, $this->compileOrderComponents($query));
+        }
 
         if (isset($query->offset) || isset($query->limit)) {
             $payload['LIMIT'] = 'LIMIT';
@@ -97,81 +104,7 @@ class Grammar extends BaseGrammar
         ];
     }
 
-    public function buildPayload(BaseBuilder $query): array
-    {
-        /** @var Builder $query */
 
-        $payload['index'] = $query->from;
-
-
-
-        $payload['body']['from'] = $query->offset ?? null;
-
-        $payload['body']['size'] = $query->limit ?? null;
-
-        foreach ($query->ranks as $rank) {
-            $query->where($rank[0], 'rank', $rank[1]);
-        }
-
-        $baseBool = $this->compileWhereComponents($query);
-
-        if (!$baseBool->isEmpty()) {
-            $payload['body']['query'] = $baseBool->compile();
-        }
-
-        $payload['body']['sort'] = $this->compileOrderComponents($query);
-
-        $payload['body']['post_filter'] = $query->post_filter?->compile();
-
-        if ($query->knn) {
-            $payload['body']['knn'] = $query->knn;
-        }
-
-        if ($query->collapse) {
-            $payload['body']['collapse'] = $query->collapse;
-        }
-
-        if ($query->suggest) {
-            $payload['body']['suggest'] = $this->compileSuggestComponents($query);
-        }
-
-        if (!empty($query->columns)) {
-            $payload['body']['_source']['includes'] = $query->columns;
-        }
-
-        if (!empty($query->exclude_columns)) {
-            $payload['body']['_source']['excludes'] = $query->exclude_columns;
-        }
-
-        $payload['body']['aggs'] = $query->getAggregations()
-            ->map(fn ($agg) => $agg->compile())
-            ->all();
-
-        $payload['body'] = collect($payload['body'])
-            ->reject(fn ($part) => null === $part)
-            ->reject(fn ($part) => [] === $part)
-            ->all();
-
-        // if ($query->collapse) {
-        //     $payload['body']['collapse']['field'] = $query->collapse;
-        // }
-
-        // if (!empty($query->post_filter)) {
-        //     $payload['body']['post_filter'] = $query->post_filter->compile();
-        // }
-
-        // if (!empty($query->filterPath)) {
-        //     $payload['filter_path'] = $query->filterPath;
-        // }
-
-        // if ($query->profile) {
-        //     $payload['body']['profile'] = true;
-        // }
-
-        // $query->buildSuggests();
-
-        return $payload;
-    }
 
     /**
      * Compile the random statement into SQL.
@@ -229,7 +162,7 @@ class Grammar extends BaseGrammar
         $key = Arr::pull($values, '_key');
 
         $attrs = collect($values)
-            ->map(fn ($value) => is_null($value) ? 'null' : $value)
+            ->map(fn ($value) => is_null($value) ? static::NULL : $value)
             ->map(fn ($value, $key) => [$key, $value])
             ->flatten()
             ->all();
@@ -312,21 +245,21 @@ class Grammar extends BaseGrammar
         if (!empty($query->orders)) {
             foreach ($query->orders as $order) {
                 if (!empty($order['type']) && 'Raw' == $order['type']) {
-                    // throw new \Exception('TODO: allow raw arrays');
-                    if (is_array($order['sql'])) {
-                        $sorts[] = $order['sql'];
-                    } elseif ($order['sql'] instanceof Query) {
-                        $sorts[] = $order['sql']->compile();
-                    }
+                    throw new \Exception('TODO: allow raw arrays');
                 } else {
-                    $sorts[] = [
-                        (string) $order['column'] => array_filter([
-                            'order' => $order['direction'],
-                            'missing' => $order['missing'] ?? null,
-                            'mode' => $order['mode'] ?? null,
-                            'nested' => $order['nested'] ?? null,
-                        ]),
-                    ];
+                    $sorts['SORTBY'] = 'SORTBY';
+                    $sorts['SORTBY_FIELD'] = $order['column'];
+                    $sorts['SORTBY_ORDER'] = strtoupper($order['direction']);
+
+                    return $sorts;
+                    // $sorts[] = [
+                    //     (string) $order['column'] => array_filter([
+                    //         'order' => $order['direction'],
+                    //         'missing' => $order['missing'] ?? null,
+                    //         'mode' => $order['mode'] ?? null,
+                    //         'nested' => $order['nested'] ?? null,
+                    //     ]),
+                    // ];
                 }
             }
         }
@@ -344,6 +277,10 @@ class Grammar extends BaseGrammar
         return collect($query->wheres)
             ->map(function ($where) use ($query): string {
 
+                if (str_starts_with($where['column'], $query->from . '.')) {
+                    $where['column'] = substr($where['column'], strlen($query->from . '.'));
+                }
+
                 $field = $query
                     ->indexConfig
                     ->getFields()
@@ -351,6 +288,12 @@ class Grammar extends BaseGrammar
 
 
                 if ($field instanceof TextField) {
+                    if ($where['type'] == 'NotNull') {
+                        return  '-@' . $where['column'] . ':' . static::NULL;
+                    }
+                    if ($where['type'] == 'Null') {
+                        return  '@' . $where['column'] . ':' . static::NULL;
+                    }
                     return  '@' . $where['column'] . ':"' . $where['value'] . '"';
                 }
 
@@ -366,7 +309,22 @@ class Grammar extends BaseGrammar
                 }
 
                 if ($field instanceof TagField) {
-                    return "@{$where['column']}:{" . implode(' | ', Arr::wrap($where['value'])) . "}";
+
+                    $tags = Collection::wrap($where['value'] ?? $where['values'])
+                        ->map(function (mixed $value): string {
+                            if (is_object($value)) {
+                                if ($value instanceof BackedEnum) {
+                                    return  $value->value;
+                                } elseif (enum_exists($value)) {
+                                    return $value->name;
+                                }
+                            }
+                            return $value;
+                        })
+                        // ->map(fn (string $value) =>  '"' . $value . '"')
+                        ->implode(' | ');
+
+                    return "@{$where['column']}:{ $tags }";
                 }
 
 

@@ -689,7 +689,7 @@ class Connection extends BaseConnection implements ConnectionInterface
             // }
 
             throw new QueryException(
-                $this->getDriverName(),
+                $this->getConfig('name'),
                 $query['method'] . ' ' . collect($query['parameters'])->flatten()->implode(' '),
                 [],
                 $e
@@ -711,19 +711,5 @@ class Connection extends BaseConnection implements ConnectionInterface
     protected function getDefaultQueryGrammar()
     {
         return new Query\Grammar();
-    }
-
-    private function createClientConfigFromConnection(array $connection): array
-    {
-        return ($connection['client'] ?? []) + array_filter([
-            'basicAuthentication' => array_filter([
-                'username' => $connection['username'] ?? null,
-                'password' => $connection['password'] ?? null,
-            ]),
-            'hosts' => $connection['hosts'] ?? null,
-            'CABundle' => $connection['certificate'] ?? null,
-            'AsyncHttpClient' => $connection['client']['AsyncHttpClient'] ?? GuzzleAdapter::createWithConfig(array_filter(['verify' => $connection['certificate'] ?? null])),
-            'ElasticCloudId' => $connection['cloud'] ?? null,
-        ]);
     }
 }

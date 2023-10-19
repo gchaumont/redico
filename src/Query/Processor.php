@@ -39,6 +39,7 @@ class Processor extends BaseProcessor
                 ->mapWithKeys(fn ($chunk) => [
                     $chunk->first() => $chunk->last()
                 ])
+                ->map(fn ($value) => $value == Grammar::NULL ? null : $value)
                 ->put('_key', $chunk->first())
                 ->all());
 
