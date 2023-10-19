@@ -330,8 +330,8 @@ class Grammar extends BaseGrammar
                             // }
 
                             # escape puncuation
-                            $value = preg_replace('/([+\-&|!(){}\[\]^"~*?:\\\\])/', '\\\\$1', $value);
-
+                            // $value = preg_replace('/([+\-&|!(){}\[\]^"~*?:\\\\])/', '\\\\$1', $value);
+                            // dump($value);
                             $specialChars = [
                                 '\\', '(', ')', '"', '-', '|', '!', '@', '{', '}', '[', ']', '.'
                             ];
