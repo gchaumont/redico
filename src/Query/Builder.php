@@ -5,10 +5,10 @@ namespace Redico\Query;
 use Exception;
 use Redico\Connection;
 use Redico\Index\Index;
+use Redico\Query\Script;
 use Redico\Query\Grammar;
 use Illuminate\Support\Arr;
 use Redico\Query\Processor;
-use Redico\Scripting\Script;
 use Redico\Scripting\Increment;
 use Redico\Query\Builder\HasKnn;
 use Redico\Scripting\UpdateParams;
@@ -24,6 +24,7 @@ use Redico\Query\Builder\HasAggregations;
 use Redico\Query\Builder\RequestsColumns;
 use Elastic\Elasticsearch\Response\Elasticsearch;
 use Illuminate\Database\Query\Builder as BaseBuilder;
+use Illuminate\Support\Collection;
 
 /**
  *  Elasticsearch Query Builder
@@ -698,6 +699,12 @@ class Builder extends BaseBuilder
         );
     }
 
+
+    public function script(Script $script)
+    {
+        return $this->connection->script($script->compile());
+    }
+
     /**
      * Execute an aggregate function on the database.
      *
@@ -763,35 +770,12 @@ class Builder extends BaseBuilder
 
     public function enumerate(
         string $field,
-        string $string = null,
-        string $after = null,
-        int $size = 10,
-        bool $insensitive = true
-    ): LazyCollection {
-        return LazyCollection::make(function () use ($field, $string, $after, $size, $insensitive): \Generator {
-            do {
-                $response = $this->connection->termsEnum(
-                    index: $this->from,
-                    field: $field,
-                    size: $size,
-                    string: $string,
-                    after: $after,
-                    insensitive: $insensitive,
-                );
+    ): Collection {
 
-                if ($response instanceof Promise) {
-                    $response = $response->wait()->asArray();
-                }
-                if ($response instanceof Elasticsearch) {
-                    $response = $response->asArray();
-                }
-                foreach ($response['terms'] as $term) {
-                    yield $term;
-                }
-
-                $after = end($response['terms']);
-            } while ($size == count($response['terms']));
-        });
+        return collect($this->connection->termsEnum(
+            index: $this->from,
+            field: $field
+        ));
     }
 
     public function orderBy(

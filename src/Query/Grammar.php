@@ -34,6 +34,11 @@ class Grammar extends BaseGrammar
 {
     const NULL_VALUE = '_null_';
 
+    public function getDateFormat()
+    {
+        return 'U';
+    }
+
     public function compileSelect(BaseBuilder $query)
     {
         $payload['index'] = $query->from;
@@ -298,6 +303,13 @@ class Grammar extends BaseGrammar
                 }
 
                 if ($field instanceof NumericField) {
+                    if ($where['type'] == 'NotNull') {
+                        return  '-@' . $where['column'] . ':' . static::NULL_VALUE;
+                    }
+                    if ($where['type'] == 'Null') {
+                        return  '@' . $where['column'] . ':' . static::NULL_VALUE;
+                    }
+
                     $range = match ($where['operator']) {
                         '>' => "({$where['value']} +inf",
                         '>=' => "{$where['value']} +inf",

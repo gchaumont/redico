@@ -59,11 +59,8 @@ class Client
     }
 
 
-    public function validateResponse(mixed $result): mixed
+    public function validateResponse(mixed $result): void
     {
-
-
-
 
         if ($result instanceof Exception) {
             $message = $result->getMessage();
@@ -71,9 +68,12 @@ class Client
             $message = $this->connection->getLastError();
         } else {
             $message = $result;
+            $message = null;
         }
+
+
         if (!is_string($message)) {
-            return $result;
+            return;
         }
 
         $message = strtolower($message);
@@ -114,5 +114,8 @@ class Client
         if ($result instanceof \Exception) {
             throw $result;
         }
+
+
+        throw new Exception($message);
     }
 }

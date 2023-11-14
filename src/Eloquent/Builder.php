@@ -36,31 +36,32 @@ class Builder extends EloquentBuilder
         'avg',
         'count',
         'dd',
-        'doesntExist',
-        'doesntExistOr',
+        'doesntexist',
+        'doesntexistor',
         'dump',
         'exists',
-        'existsOr',
+        'existsor',
         'explain',
-        'getBindings',
-        'getConnection',
-        'getGrammar',
+        'getbindings',
+        'getconnection',
+        'getgrammar',
         'implode',
         // 'insert',
-        'insertGetId',
-        'insertOrIgnore',
-        'insertUsing',
+        'insertgetid',
+        'insertorignore',
+        'insertusing',
         'max',
         'min',
         'raw',
-        'rawValue',
+        'rawvalue',
         'sum',
-        'toSql',
-        'getAggregations',
-        'getMany',
-        'enumerateTerms',
+        'tosql',
+        'getaggregations',
+        'getmany',
+        'enumerateterms',
         'enumerate',
-        'deleteMany'
+        'deletemany',
+        'script',
     ];
 
     /**
@@ -376,6 +377,7 @@ class Builder extends EloquentBuilder
                 ],
             })
             ->all();
+
         $response = $this->toBase()->insert(
             $insertValues
         );
@@ -386,9 +388,9 @@ class Builder extends EloquentBuilder
             return collect($values)
                 ->each(function (Model $value, int $i) use ($response): void {
                     $value->exists = true;
-                    $value->setAttribute($value->getKeyName(), $response['items'][$i]['create']['_id']);
-                    $value->setAttribute('_id', $response['items'][$i]['create']['_id']);
-                    $value->setAttribute('_index', $response['items'][$i]['create']['_index']);
+                    // $value->setAttribute($value->getKeyName(), $response['items'][$i]['create']['_id']);
+                    // $value->setAttribute('_id', $response['items'][$i]['create']['_id']);
+                    // $value->setAttribute('_index', $response['items'][$i]['create']['_index']);
                     // $value->setTable($response['items'][$i]['create']['_index']);
                 })
                 ->pipe(fn ($values) => $values->first()->newCollection($values->all()));

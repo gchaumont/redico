@@ -178,19 +178,12 @@ class Connection extends BaseConnection implements ConnectionInterface
         });
     }
 
-    public function termsEnum(string|array $index, string $field, int $size = null, string $string = null, string $after = null, bool $insensitive = null)
+    public function termsEnum(string $index, string $field)
     {
         $query = [
-            'method' => 'termsEnum',
+            'method' => 'FT.TAGVALS',
             'payload' => [
-                'index' => $index,
-                'body' => array_filter([
-                    'field' => $field,
-                    'size' => $size,
-                    'string' => $string,
-                    'search_after' => $after,
-                    'case_insensitive' => $insensitive,
-                ]),
+                $index, $field
             ],
         ];
 
@@ -217,25 +210,12 @@ class Connection extends BaseConnection implements ConnectionInterface
 
         return $this->run($query, $bindings, function ($query, $bindings) {
             if ($this->pretending()) {
-                return [];
+                return [0, []];
             }
 
-
-            $response = $this->getClient()->command($query['method'], array_values($query['parameters']));
+            $response = $this->getClient()->command($query['method'], $query['parameters']);
 
             return $response;
-
-
-            // For select statements, we'll simply execute the query and return an array
-            // of the database result set. Each element in the array will be a single
-            // row from the database table, and will either be an array or objects.
-            $statement = $this->prepared(
-                $this->getPdoForSelect($useReadPdo)->prepare($query)
-            );
-
-            $statement->execute();
-
-            return $statement->fetchAll();
         });
     }
 
@@ -389,7 +369,7 @@ class Connection extends BaseConnection implements ConnectionInterface
             if ($this->pretending()) {
                 return true;
             }
-
+            // dump($query);
             $r = $this->getClient()
                 ->pipeline(static function ($pipe) use ($query, $bindings) {
                     foreach ($query['parameters'] as $arguments) {
@@ -441,6 +421,22 @@ class Connection extends BaseConnection implements ConnectionInterface
         });
     }
 
+    public function script(array $query)
+    {
+        $query = [
+            'method' => 'eval',
+            'parameters' => $query,
+        ];
+
+        return $this->run($query, [], function ($query, $bindings) {
+            if ($this->pretending()) {
+                return true;
+            }
+
+            return $this->getClient()->command($query['method'], $query['parameters']);
+        });
+    }
+
     public function updateByQuery($query)
     {
         $query = [
@@ -489,13 +485,12 @@ class Connection extends BaseConnection implements ConnectionInterface
         });
     }
 
-    public function deleteDocument(string $id, string $table)
+    public function deleteDocument(string|array $id, string $table)
     {
+        $id = Arr::wrap($id);
         $query = [
             'method' => 'del',
-            'parameters' => [
-                $table . '::' . $id,
-            ],
+            'parameters' => array_map(static fn (string $id): string => $table . '::' . $id, $id),
         ];
 
         return $this->run($query, [], function ($query, $bindings) {
@@ -663,6 +658,7 @@ class Connection extends BaseConnection implements ConnectionInterface
      */
     protected function runQueryCallback($query, $bindings, \Closure $callback)
     {
+
         // To execute the statement, we'll simply call the callback, which will actually
         // run the SQL against the PDO connection. Then we can calculate the time it
         // took to execute and log the query SQL, bindings and time in our memory.

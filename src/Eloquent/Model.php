@@ -14,15 +14,12 @@ use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 
 /**
  * Model.
- * @method static \Redico\Eloquent\Builder whereIn()
  */
 abstract class Model extends BaseModel implements Castable
 {
     public $incrementing = false;
 
     protected $keyType = 'string';
-
-    protected $dateFormat = 'c';
 
     protected $connection = 'default';
 
