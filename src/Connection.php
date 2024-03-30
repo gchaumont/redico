@@ -114,12 +114,12 @@ class Connection extends BaseConnection implements ConnectionInterface
     {
         $query = [
             'method' => 'hgetall',
-            'parameters' => $query,
+            'payload' => $query,
         ];
 
         return $this->run($query, [], function ($query, $bindings) {
 
-            $response = $this->performQuery($query['method'], $query['parameters']);
+            $response = $this->performQuery($query['method'], $query['payload']);
             if (empty($response)) {
                 return null;
             }
@@ -135,11 +135,11 @@ class Connection extends BaseConnection implements ConnectionInterface
 
         $query = [
             'method' => 'mget',
-            'parameters' => $query,
+            'payload' => $query,
         ];
 
         return $this->run($query, [], function ($query, $bindings) {
-            return $this->performQuery($query['method'], $query['parameters']);
+            return $this->performQuery($query['method'], $query['payload']);
         });
     }
 
@@ -147,12 +147,12 @@ class Connection extends BaseConnection implements ConnectionInterface
     {
         $query = [
             'method' => 'FT.SEARCH',
-            'parameters' => $query,
+            'payload' => $query,
         ];
 
         return $this->run($query, [], function ($query, $bindings) {
 
-            $response = $this->performQuery($query['method'], $query['parameters']);
+            $response = $this->performQuery($query['method'], $query['payload']);
 
             return $response;
         });
@@ -162,12 +162,12 @@ class Connection extends BaseConnection implements ConnectionInterface
     {
         $query = [
             'method' => 'bulk',
-            'parameters' => $query,
+            'payload' => $query,
         ];
 
 
         return $this->run($query, [], function ($query, $bindings) {
-            $response = $this->performQuery($query['method'], $query['parameters']);
+            $response = $this->performQuery($query['method'], $query['payload']);
 
             if ($response['errors'] ?? false) {
 
@@ -205,7 +205,7 @@ class Connection extends BaseConnection implements ConnectionInterface
     {
         $query = [
             'method' => 'FT.SEARCH',
-            'parameters' => $query,
+            'payload' => $query,
         ];
 
         return $this->run($query, $bindings, function ($query, $bindings) {
@@ -213,7 +213,7 @@ class Connection extends BaseConnection implements ConnectionInterface
                 return [0, []];
             }
 
-            $response = $this->getClient()->command($query['method'], $query['parameters']);
+            $response = $this->getClient()->command($query['method'], $query['payload']);
 
             return $response;
         });
@@ -362,7 +362,7 @@ class Connection extends BaseConnection implements ConnectionInterface
     {
         $query = [
             'method' => 'hset',
-            'parameters' => $query,
+            'payload' => $query,
         ];
 
         return $this->run($query, $bindings, function ($query, $bindings) {
@@ -372,7 +372,7 @@ class Connection extends BaseConnection implements ConnectionInterface
             // dump($query);
             $r = $this->getClient()
                 ->pipeline(static function ($pipe) use ($query, $bindings) {
-                    foreach ($query['parameters'] as $arguments) {
+                    foreach ($query['payload'] as $arguments) {
                         $pipe->rawCommand($query['method'],  ...$arguments);
                     }
                 });
@@ -383,7 +383,7 @@ class Connection extends BaseConnection implements ConnectionInterface
             // }
 
 
-            return count($r) === count($query['parameters']);
+            return count($r) === count($query['payload']);
         });
     }
 
@@ -399,7 +399,7 @@ class Connection extends BaseConnection implements ConnectionInterface
     {
         $query = [
             'method' => 'hset',
-            'parameters' => $query,
+            'payload' => $query,
         ];
 
         return $this->run($query, $bindings, function ($query, $bindings) {
@@ -413,7 +413,7 @@ class Connection extends BaseConnection implements ConnectionInterface
 
 
 
-            $r = $this->getClient()->command($query['method'], $query['parameters']);
+            $r = $this->getClient()->command($query['method'], $query['payload']);
 
             return true;
 
@@ -425,7 +425,7 @@ class Connection extends BaseConnection implements ConnectionInterface
     {
         $query = [
             'method' => 'eval',
-            'parameters' => $query,
+            'payload' => $query,
         ];
 
         return $this->run($query, [], function ($query, $bindings) {
@@ -433,7 +433,7 @@ class Connection extends BaseConnection implements ConnectionInterface
                 return true;
             }
 
-            return $this->getClient()->command($query['method'], $query['parameters']);
+            return $this->getClient()->command($query['method'], $query['payload']);
         });
     }
 
@@ -488,13 +488,26 @@ class Connection extends BaseConnection implements ConnectionInterface
     public function deleteDocument(string|array $id, string $table)
     {
         $id = Arr::wrap($id);
+
         $query = [
             'method' => 'del',
-            'parameters' => array_map(static fn (string $id): string => $table . '::' . $id, $id),
+            'payload' => array_map(static fn (string $id): string => $table . '::' . $id, $id),
         ];
 
         return $this->run($query, [], function ($query, $bindings) {
-            return $this->performQuery($query['method'], $query['parameters']);
+            return $this->performQuery($query['method'], $query['payload']);
+        });
+    }
+
+    public function hincrby(string $key, string $field, int $amount)
+    {
+        $query = [
+            'method' => 'hincrby',
+            'payload' => [$key, $field, $amount],
+        ];
+
+        return $this->run($query, [], function ($query, $bindings) {
+            return $this->performQuery($query['method'], $query['payload']);
         });
     }
 
@@ -684,9 +697,10 @@ class Connection extends BaseConnection implements ConnectionInterface
             //     throw new ModelNotFoundException();
             // }
 
+
             throw new QueryException(
                 $this->getConfig('name'),
-                $query['method'] . ' ' . collect($query['parameters'])->flatten()->implode(' '),
+                $query['method'] . ' ' . collect($query['payload'])->flatten()->implode(' '),
                 [],
                 $e
             );

@@ -255,6 +255,43 @@ abstract class Model extends BaseModel implements Castable
     }
 
 
+    /**
+     * Run the increment or decrement method on the model.
+     *
+     * @param  string  $column
+     * @param  float|int  $amount
+     * @param  array  $extra
+     * @param  string  $method
+     * @return int
+     */
+    protected function incrementOrDecrement($column, $amount, $extra, $method)
+    {
+        if (!$this->exists) {
+            return $this->newQueryWithoutRelationships()->{$method}($column, $amount, $extra);
+        }
+
+        // $this->{$column} = $this->isClassDeviable($column)
+        //     ? $this->deviateClassCastableAttribute($method, $column, $amount)
+        //     : $this->{$column} + ($method === 'increment' ? $amount : $amount * -1);
+
+        // $this->forceFill($extra);
+
+        if ($this->fireModelEvent('updating') === false) {
+            return false;
+        }
+
+        return tap($this->setKeysForSaveQuery($this->newQueryWithoutScopes())->{$method}($column, $amount, $extra), function ($int) use ($column) {
+            $this->{$column} = $int;
+
+            $this->syncChanges();
+
+            $this->fireModelEvent('updated', false);
+
+            $this->syncOriginalAttribute($column);
+        });
+    }
+
+
 
 
     /**

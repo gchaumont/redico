@@ -25,10 +25,10 @@
         "php": "^8.2"
     },
     "require-dev": {
-        "illuminate/collections": "^10.0",
-        "illuminate/database": "^10.0",
-        "illuminate/support": "^10.0",
-        "illuminate/container": "^10.0",
-        "illuminate/events": "^10.0"
+        "illuminate/collections": "^11.0",
+        "illuminate/database": "^11.0",
+        "illuminate/support": "^11.0",
+        "illuminate/container": "^11.0",
+        "illuminate/events": "^11.0"
     }
 }

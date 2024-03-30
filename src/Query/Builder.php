@@ -9,8 +9,10 @@ use Redico\Query\Script;
 use Redico\Query\Grammar;
 use Illuminate\Support\Arr;
 use Redico\Query\Processor;
+use InvalidArgumentException;
 use Redico\Scripting\Increment;
 use Redico\Query\Builder\HasKnn;
+use Illuminate\Support\Collection;
 use Redico\Scripting\UpdateParams;
 use Redico\Aggregations\Metric\Avg;
 use Redico\Aggregations\Metric\Max;
@@ -24,7 +26,6 @@ use Redico\Query\Builder\HasAggregations;
 use Redico\Query\Builder\RequestsColumns;
 use Elastic\Elasticsearch\Response\Elasticsearch;
 use Illuminate\Database\Query\Builder as BaseBuilder;
-use Illuminate\Support\Collection;
 
 /**
  *  Elasticsearch Query Builder
@@ -563,17 +564,21 @@ class Builder extends BaseBuilder
      *
      * @throws \InvalidArgumentException
      */
-    public function increment($column, $amount = 1, array $extra = [])
+    public function increment($column, $amount = 1, $extra = [])
     {
         if (!is_numeric($amount)) {
             throw new InvalidArgumentException('Non-numeric value passed to increment method.');
         }
 
-        return $this->update(new Increment(
+        if (!isset($this->index_id) || !isset($this->model_id)) {
+            throw new InvalidArgumentException('Increment by ID requires index_id and model_id to be set.');
+        }
+
+        return $this->connection->hincrby(
+            key: $this->index_id . '::' . $this->model_id,
             field: $column,
             amount: $amount,
-            extra: $extra,
-        ));
+        );
     }
 
     /**
@@ -592,11 +597,15 @@ class Builder extends BaseBuilder
             throw new InvalidArgumentException('Non-numeric value passed to decrement method.');
         }
 
-        return $this->update(new Increment(
+        if (!isset($this->index_id) || !isset($this->model_id)) {
+            throw new InvalidArgumentException('Increment by ID requires index_id and model_id to be set.');
+        }
+
+        return $this->connection->hincrby(
+            key: $this->index_id . '::' . $this->model_id,
             field: $column,
             amount: -$amount,
-            extra: $extra,
-        ));
+        );
     }
 
     /**
