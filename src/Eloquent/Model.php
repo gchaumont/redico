@@ -152,13 +152,14 @@ abstract class Model extends BaseModel implements Castable
         return parent::getAttribute($key);
     }
 
-    protected function getStorableEnumValue($value)
+
+    protected function getStorableEnumValue($expectedEnum, $value)
     {
         if ($value === null) {
             return null;
         }
 
-        return parent::getStorableEnumValue($value);
+        return parent::getStorableEnumValue($expectedEnum, $value);
     }
 
 
